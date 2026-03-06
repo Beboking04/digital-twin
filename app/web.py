@@ -8,6 +8,7 @@ import hindsight_client
 app = FastAPI(title="Digital Twin Dashboard")
 
 templates = Jinja2Templates(directory="/app/templates")
+os.makedirs("/app/static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
 
