@@ -5,93 +5,90 @@ import logging
 logger = logging.getLogger(__name__)
 
 HINDSIGHT_URL = os.getenv("HINDSIGHT_URL", "http://hindsight:8888")
-BANK_NAME = "digital-twin"
+BANK_ID = "digital-twin"
+BASE = f"/v1/default/banks/{BANK_ID}"
 
 
-async def _client():
-    return httpx.AsyncClient(base_url=HINDSIGHT_URL, timeout=30.0)
+def _client():
+    return httpx.AsyncClient(base_url=HINDSIGHT_URL, timeout=60.0)
 
 
 async def ensure_bank():
-    async with await _client() as client:
-        try:
-            resp = await client.get(f"/banks/{BANK_NAME}")
-            if resp.status_code == 200:
-                return
-        except Exception:
-            pass
+    async with _client() as client:
+        resp = await client.get(f"{BASE}")
+        if resp.status_code == 200:
+            logger.info("Bank '%s' exists", BANK_ID)
+            return
 
-        resp = await client.post("/banks", json={
-            "name": BANK_NAME,
-            "description": "Digital Twin memory bank"
+        resp = await client.put(BASE, json={
+            "retain_extraction_mode": "verbose",
         })
-        if resp.status_code in (200, 201, 409):
-            logger.info("Bank '%s' ready", BANK_NAME)
+        if resp.status_code in (200, 201):
+            logger.info("Bank '%s' created", BANK_ID)
         else:
             logger.error("Failed to create bank: %s %s", resp.status_code, resp.text)
 
 
 async def retain(text: str, metadata: dict | None = None):
-    async with await _client() as client:
-        payload = {
-            "bank": BANK_NAME,
-            "content": text,
-        }
+    async with _client() as client:
+        item = {"content": text}
         if metadata:
-            payload["metadata"] = metadata
+            tags = [f"{k}:{v}" for k, v in metadata.items()]
+            item["tags"] = tags
 
-        resp = await client.post("/retain", json=payload)
-        resp.raise_for_status()
-        return resp.json()
-
-
-async def recall(query: str, limit: int = 10):
-    async with await _client() as client:
-        resp = await client.post("/recall", json={
-            "bank": BANK_NAME,
-            "query": query,
-            "limit": limit,
+        resp = await client.post(f"{BASE}/memories", json={
+            "items": [item],
         })
         resp.raise_for_status()
         return resp.json()
 
 
-async def reflect():
-    async with await _client() as client:
-        resp = await client.post("/reflect", json={
-            "bank": BANK_NAME,
+async def recall(query: str, limit: int = 10):
+    async with _client() as client:
+        resp = await client.post(f"{BASE}/memories/recall", json={
+            "query": query,
+            "max_tokens": 4096,
+        })
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def reflect(query: str = "Was sind meine wichtigsten Denkmuster, Werte und Entscheidungsweisen?"):
+    async with _client() as client:
+        resp = await client.post(f"{BASE}/reflect", json={
+            "query": query,
         })
         resp.raise_for_status()
         return resp.json()
 
 
 async def get_memories(limit: int = 50):
-    async with await _client() as client:
-        resp = await client.post("/recall", json={
-            "bank": BANK_NAME,
-            "query": "alles was ich gesagt und erlebt habe",
-            "limit": limit,
-        })
+    async with _client() as client:
+        resp = await client.get(f"{BASE}/memories/list")
         if resp.status_code == 200:
             return resp.json()
         return []
 
 
 async def get_mental_models():
-    async with await _client() as client:
-        resp = await client.post("/recall", json={
-            "bank": BANK_NAME,
-            "query": "wie ticke ich, meine Denkweise, Entscheidungsmuster, Werte",
-            "limit": 20,
-        })
+    async with _client() as client:
+        resp = await client.get(f"{BASE}/mental-models")
         if resp.status_code == 200:
             return resp.json()
         return []
 
 
+async def get_stats():
+    async with _client() as client:
+        resp = await client.get(f"{BASE}/stats")
+        if resp.status_code == 200:
+            return resp.json()
+        return {}
+
+
 async def health_check():
     try:
-        async with await _client() as client:
+        async with _client() as client:
             resp = await client.get("/health")
             return resp.status_code == 200
     except Exception:

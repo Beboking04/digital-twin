@@ -27,11 +27,11 @@ async def health():
 
 
 @app.get("/api/memories")
-async def get_memories(q: str = "", limit: int = 30):
+async def get_memories(q: str = ""):
     if q:
-        results = await hindsight_client.recall(q, limit=limit)
+        results = await hindsight_client.recall(q)
     else:
-        results = await hindsight_client.get_memories(limit=limit)
+        results = await hindsight_client.get_memories()
     return {"memories": results}
 
 
@@ -39,6 +39,11 @@ async def get_memories(q: str = "", limit: int = 30):
 async def get_mental_models():
     results = await hindsight_client.get_mental_models()
     return {"models": results}
+
+
+@app.get("/api/stats")
+async def get_stats():
+    return await hindsight_client.get_stats()
 
 
 @app.post("/api/reflect")

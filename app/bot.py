@@ -60,10 +60,21 @@ async def get_twin_response(query: str) -> str:
 
     memory_context = ""
     if memories:
-        items = memories if isinstance(memories, list) else memories.get("results", memories.get("memories", []))
-        for m in items:
-            content = m.get("content", m.get("text", str(m)))
-            memory_context += f"- {content}\n"
+        # Handle different response formats
+        if isinstance(memories, dict):
+            content = memories.get("content", memories.get("text", ""))
+            if content:
+                memory_context = content
+            else:
+                items = memories.get("results", memories.get("memories", []))
+                if isinstance(items, list):
+                    for m in items:
+                        c = m.get("content", m.get("text", str(m)))
+                        memory_context += f"- {c}\n"
+        elif isinstance(memories, list):
+            for m in memories:
+                c = m.get("content", m.get("text", str(m)))
+                memory_context += f"- {c}\n"
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -101,7 +112,10 @@ async def cmd_reflect(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Reflektiere ueber deine Erinnerungen...")
     try:
         result = await hindsight_client.reflect()
-        await update.message.reply_text(f"Reflection abgeschlossen:\n{result}")
+        text = result.get("content", result.get("text", str(result)))
+        if len(text) > 4000:
+            text = text[:4000] + "..."
+        await update.message.reply_text(f"Reflection:\n\n{text}")
     except Exception as e:
         await update.message.reply_text(f"Fehler bei Reflection: {e}")
 
@@ -109,7 +123,11 @@ async def cmd_reflect(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     healthy = await hindsight_client.health_check()
     status = "online" if healthy else "offline"
-    await update.message.reply_text(f"Hindsight: {status}")
+    try:
+        stats = await hindsight_client.get_stats()
+        await update.message.reply_text(f"Hindsight: {status}\nStats: {stats}")
+    except Exception:
+        await update.message.reply_text(f"Hindsight: {status}")
 
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -140,7 +158,8 @@ async def process_message(update: Update, text: str):
                 "type": "diary",
                 "source": "telegram",
             })
-            await update.message.reply_text(f"Gespeichert.\n\n\"{text[:200]}{'...' if len(text) > 200 else ''}\"")
+            preview = text[:200] + ('...' if len(text) > 200 else '')
+            await update.message.reply_text(f"Gespeichert.\n\n\"{preview}\"")
         except Exception as e:
             logger.error("Retain failed: %s", e)
             await update.message.reply_text(f"Fehler beim Speichern: {e}")
