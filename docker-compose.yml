@@ -1,0 +1,30 @@
+services:
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    environment:
+      - HINDSIGHT_API_LLM_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  twin-app:
+    build: ./app
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - HINDSIGHT_URL=${HINDSIGHT_URL}
+      - DASHBOARD_SECRET=${DASHBOARD_SECRET}
+    ports:
+      - "3000:3000"
+    depends_on:
+      hindsight:
+        condition: service_healthy
+    restart: always
+
+volumes:
+  hindsight-data:

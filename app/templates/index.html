@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .header {
+            background: #111;
+            border-bottom: 1px solid #222;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 20px; color: #fff; }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        .status-dot.online { background: #22c55e; }
+        .status-dot.offline { background: #ef4444; }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+
+        .card {
+            background: #141414;
+            border: 1px solid #222;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card h2 {
+            font-size: 16px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .chat-card { grid-column: 1 / -1; }
+
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 16px;
+            padding: 12px;
+            background: #0a0a0a;
+            border-radius: 8px;
+            border: 1px solid #222;
+        }
+        .chat-msg {
+            margin-bottom: 12px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            max-width: 80%;
+        }
+        .chat-msg.user {
+            background: #1d4ed8;
+            margin-left: auto;
+        }
+        .chat-msg.twin {
+            background: #222;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 8px;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 12px 16px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+        .chat-input input:focus { border-color: #1d4ed8; }
+
+        .btn {
+            padding: 10px 20px;
+            background: #1d4ed8;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn.secondary { background: #333; }
+        .btn.secondary:hover { background: #444; }
+
+        .memory-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .memory-item {
+            padding: 12px;
+            border-bottom: 1px solid #1a1a1a;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .memory-item:last-child { border-bottom: none; }
+        .memory-meta {
+            font-size: 12px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .search-bar {
+            margin-bottom: 16px;
+            display: flex;
+            gap: 8px;
+        }
+        .search-bar input {
+            flex: 1;
+            padding: 10px 14px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #555;
+        }
+
+        .actions { display: flex; gap: 8px; margin-bottom: 16px; }
+
+        @media (max-width: 768px) {
+            .container { grid-template-columns: 1fr; padding: 12px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Digital Twin</h1>
+        <div id="status">
+            <span class="status-dot" id="status-dot"></span>
+            <span id="status-text">Verbinde...</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Chat -->
+        <div class="card chat-card">
+            <h2>Chat mit deinem Zwilling</h2>
+            <div class="chat-messages" id="chat-messages"></div>
+            <div class="chat-input">
+                <input type="text" id="chat-input" placeholder="Frag deinen Zwilling etwas..."
+                       onkeydown="if(event.key==='Enter')sendChat()">
+                <button class="btn" onclick="sendChat()">Senden</button>
+            </div>
+        </div>
+
+        <!-- Erinnerungen -->
+        <div class="card">
+            <h2>Erinnerungen</h2>
+            <div class="search-bar">
+                <input type="text" id="memory-search" placeholder="Erinnerungen durchsuchen..."
+                       onkeydown="if(event.key==='Enter')searchMemories()">
+                <button class="btn secondary" onclick="searchMemories()">Suchen</button>
+            </div>
+            <div class="memory-list" id="memory-list">
+                <div class="empty-state">Lade Erinnerungen...</div>
+            </div>
+        </div>
+
+        <!-- Mental Models -->
+        <div class="card">
+            <h2>Mental Models</h2>
+            <div class="actions">
+                <button class="btn secondary" onclick="triggerReflect()">Reflect ausfuehren</button>
+            </div>
+            <div class="memory-list" id="models-list">
+                <div class="empty-state">Lade Mental Models...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function checkHealth() {
+            try {
+                const res = await fetch('/api/health');
+                const data = await res.json();
+                const dot = document.getElementById('status-dot');
+                const text = document.getElementById('status-text');
+                if (data.hindsight === 'online') {
+                    dot.className = 'status-dot online';
+                    text.textContent = 'Online';
+                } else {
+                    dot.className = 'status-dot offline';
+                    text.textContent = 'Hindsight offline';
+                }
+            } catch {
+                document.getElementById('status-dot').className = 'status-dot offline';
+                document.getElementById('status-text').textContent = 'Offline';
+            }
+        }
+
+        async function loadMemories(query = '') {
+            const list = document.getElementById('memory-list');
+            try {
+                const url = query ? `/api/memories?q=${encodeURIComponent(query)}` : '/api/memories';
+                const res = await fetch(url);
+                const data = await res.json();
+                const memories = data.memories;
+
+                const items = Array.isArray(memories) ? memories : (memories.results || memories.memories || []);
+
+                if (!items.length) {
+                    list.innerHTML = '<div class="empty-state">Noch keine Erinnerungen. Schick deinem Bot eine Nachricht!</div>';
+                    return;
+                }
+
+                list.innerHTML = items.map(m => {
+                    const content = m.content || m.text || JSON.stringify(m);
+                    return `<div class="memory-item">${escapeHtml(content)}</div>`;
+                }).join('');
+            } catch {
+                list.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+            }
+        }
+
+        async function loadModels() {
+            const list = document.getElementById('models-list');
+            try {
+                const res = await fetch('/api/mental-models');
+                const data = await res.json();
+                const models = data.models;
+
+                const items = Array.isArray(models) ? models : (models.results || models.memories || []);
+
+                if (!items.length) {
+                    list.innerHTML = '<div class="empty-state">Noch keine Mental Models. Nutze /reflect im Bot.</div>';
+                    return;
+                }
+
+                list.innerHTML = items.map(m => {
+                    const content = m.content || m.text || JSON.stringify(m);
+                    return `<div class="memory-item">${escapeHtml(content)}</div>`;
+                }).join('');
+            } catch {
+                list.innerHTML = '<div class="empty-state">Fehler beim Laden</div>';
+            }
+        }
+
+        function searchMemories() {
+            const q = document.getElementById('memory-search').value;
+            loadMemories(q);
+        }
+
+        async function triggerReflect() {
+            try {
+                const res = await fetch('/api/reflect', { method: 'POST' });
+                const data = await res.json();
+                alert('Reflect abgeschlossen!');
+                loadModels();
+            } catch {
+                alert('Fehler bei Reflect');
+            }
+        }
+
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const messages = document.getElementById('chat-messages');
+            messages.innerHTML += `<div class="chat-msg user">${escapeHtml(msg)}</div>`;
+            input.value = '';
+            messages.scrollTop = messages.scrollHeight;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg }),
+                });
+                const data = await res.json();
+                messages.innerHTML += `<div class="chat-msg twin">${escapeHtml(data.response)}</div>`;
+            } catch {
+                messages.innerHTML += `<div class="chat-msg twin">Fehler bei der Antwort.</div>`;
+            }
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Init
+        checkHealth();
+        loadMemories();
+        loadModels();
+        setInterval(checkHealth, 30000);
+    </script>
+</body>
+</html>
