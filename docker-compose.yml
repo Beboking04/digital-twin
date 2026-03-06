@@ -14,6 +14,7 @@ services:
 
   twin-app:
     image: ghcr.io/beboking04/digital-twin/twin-app:latest
+    build: ./app
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}

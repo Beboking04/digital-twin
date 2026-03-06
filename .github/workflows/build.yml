@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/twin-app
+  IMAGE_NAME: beboking04/digital-twin/twin-app
 
 jobs:
   build:
